@@ -24,8 +24,7 @@ dist-ssr
 *.sw?
 
 # Ignorar variáveis de ambiente (Crucial para segurança)
-.env
-
+backend/.env
 # Ignorar ambiente virtual e caches do Python (Backend)
 venv/
 __pycache__/
