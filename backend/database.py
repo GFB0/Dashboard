@@ -49,8 +49,8 @@ def salvar_avaliacao_dinamica(turma_id, texto, respostas_json, resumo):
 
 # 4. Lista todas as turmas para o menu do React
 def listar_turmas_do_banco():
-    # ADICIONAMOS O perguntas_json AQUI NO SELECT:
-    url = f"{URL_SUPABASE}/rest/v1/turmas?select=id,nome_treinamento,perguntas_json"
+    # Adicionamos 'ativo' no select
+    url = f"{URL_SUPABASE}/rest/v1/turmas?select=id,nome_treinamento,perguntas_json,ativo&order=created_at.desc"
     cabecalhos_get = {"apikey": CHAVE_SUPABASE, "Authorization": f"Bearer {CHAVE_SUPABASE}"}
     resposta = requests.get(url, headers=cabecalhos_get)
     resposta.raise_for_status()
@@ -62,5 +62,13 @@ def buscar_dados_dashboard():
     url = f"{URL_SUPABASE}/rest/v1/avaliacoes_dinamicas?select=*,turmas(id,nome_treinamento,perguntas_json)"
     cabecalhos_get = {"apikey": CHAVE_SUPABASE, "Authorization": f"Bearer {CHAVE_SUPABASE}"}
     resposta = requests.get(url, headers=cabecalhos_get)
+    resposta.raise_for_status()
+    return resposta.json()
+    
+# NOVA FUNÇÃO: Ativar/Inativar Formulário
+def alternar_status_turma(turma_id, novo_status):
+    url = f"{URL_SUPABASE}/rest/v1/turmas?id=eq.{turma_id}"
+    dados = {"ativo": novo_status}
+    resposta = requests.patch(url, headers=cabecalhos, json=dados)
     resposta.raise_for_status()
     return resposta.json()

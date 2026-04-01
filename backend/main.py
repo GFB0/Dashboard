@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from typing import List
 
 # Importa as novas funções do banco
-from database import buscar_dados_dashboard, criar_turma_no_banco, buscar_turma_por_id, listar_turmas_do_banco, salvar_avaliacao_dinamica
+from database import alternar_status_turma, buscar_dados_dashboard, criar_turma_no_banco, buscar_turma_por_id, listar_turmas_do_banco, salvar_avaliacao_dinamica
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -22,6 +22,7 @@ class PerguntaInput(BaseModel):
     texto: str
     tipo: str # Pode ser: 'texto', 'unica_escolha', 'multipla_escolha'
     opcoes: List[str] = [] # Se for escolha, guarda as opções. Ex: ["Sim", "Não", "Talvez"]
+    obrigatoria: bool = True # Se a pergunta é obrigatória ou não
 
 # Modelos do que a API espera receber do React
 class NovaTurmaInput(BaseModel):
@@ -116,20 +117,26 @@ class AvaliacaoManualInput(BaseModel):
     turma_id: int
     respostas: dict # Ex: {"Qual a nota?": "5", "Tem aptidão?": ["Não"]}
 
-# ROTA 4: O usuário preencheu o formulário na mão (Google Forms)
+class StatusTurmaInput(BaseModel):
+    ativo: bool
+
+# ROTA 4: O usuário preencheu o formulário na mão (Interface Pública)
 @app.post("/api/avaliar_manual")
 def avaliar_formulario_manual(dados: AvaliacaoManualInput):
     try:
-        # A IA agora só precisa gerar a análise, pois os dados já estão estruturados!
+        # Atualizamos o prompt para exigir o sentimento_geral igual ao Agente IA
         prompt = f"""
-        Atue como um analista especialista em RH. 
+        Atue como um analista especialista em Inteligência de Treinamentos. 
         Leia as respostas estruturadas de um formulário de avaliação abaixo:
         {json.dumps(dados.respostas, ensure_ascii=False)}
 
-        Sua única tarefa é criar um resumo analítico de uma ou duas frases sobre o comportamento avaliado, tirando uma conclusão sobre o perfil analisado.
+        Sua tarefa é criar um resumo analítico de uma ou duas frases sobre o comportamento e resultado avaliado.
+        MÉTRICA UNIVERSAL OBRIGATÓRIA:
+        Classifique o sentimento/saúde geral destas respostas em UMA destas 3 categorias exatas: "Sucesso", "Atenção" ou "Crítico".
         
         Devolva APENAS um JSON válido nesta estrutura exata:
         {{
+            "sentimento_geral": "Sua classificação (Sucesso/Atenção/Crítico)",
             "resumo_ia": "Seu resumo analítico aqui."
         }}
         """
@@ -138,12 +145,14 @@ def avaliar_formulario_manual(dados: AvaliacaoManualInput):
         texto_limpo = resposta_ia.text.strip().replace("```json", "").replace("```", "")
         resultado_json = json.loads(texto_limpo)
         
-        # Salva no banco. No lugar do texto bruto, avisamos que foi preenchimento manual
+        # Junta o sentimento geral ao resumo para o Dashboard conseguir ler
+        resumo_com_sentimento = f"[{resultado_json.get('sentimento_geral', 'Neutro')}] {resultado_json.get('resumo_ia', '')}"
+        
         salvo_no_banco = salvar_avaliacao_dinamica(
             turma_id=dados.turma_id,
             texto="[PREENCHIMENTO MANUAL VIA FORMULÁRIO]",
             respostas_json=dados.respostas,
-            resumo=resultado_json.get("resumo_ia", "")
+            resumo=resumo_com_sentimento
         )
         
         return {"sucesso": True, "dados_salvos": salvo_no_banco}
@@ -162,11 +171,20 @@ def api_obter_turma(turma_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-    # ROTA 6: Alimenta os gráficos do painel de administração
+# ROTA 6: Alimenta os gráficos do painel de administração
 @app.get("/api/dashboard")
 def api_dashboard():
     try:
         dados = buscar_dados_dashboard()
         return {"sucesso": True, "avaliacoes": dados}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# ROTA 7: Ativar ou Inativar um Template
+@app.patch("/api/turmas/{turma_id}/status")
+def api_alterar_status(turma_id: int, dados: StatusTurmaInput):
+    try:
+        res = alternar_status_turma(turma_id, dados.ativo)
+        return {"sucesso": True, "dados": res}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -74,6 +74,25 @@ function Formulario() {
   if (erro) return <div style={{ textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' }}><h2>{erro}</h2></div>;
   if (!turma) return <div style={{ textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' }}>Carregando formulário...</div>;
 
+  // NOVA TRAVA: Se o formulário foi desativado no painel, bloqueia a tela inteira.
+  if (turma.ativo === false) {
+    return (
+      <div style={MDesign.fundo}>
+        <div style={MDesign.container}>
+          <div style={MDesign.cardCabecalho}>
+            <div style={{ height: '10px', backgroundColor: '#5f6368' }}></div> {/* Borda cinza para indicar inativo */}
+            <div style={{ padding: '32px 24px' }}>
+              <h1 style={{ ...MDesign.tituloCabecalho, color: '#5f6368', padding: 0 }}>O formulário "{turma.nome_treinamento}" não aceita mais respostas</h1>
+              <p style={{ color: '#202124', fontSize: '15px', marginTop: '16px', lineHeight: '1.5' }}>
+                Este formulário foi desativado pelo administrador. Se você acha que isso é um erro, entre em contato com o responsável pelo treinamento.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   if (sucesso) {
     return (
       <div style={MDesign.fundo}>
@@ -106,10 +125,13 @@ function Formulario() {
         <form onSubmit={enviarFormulario}>
           {turma.perguntas_json.map((p, pIndex) => (
             <div key={pIndex} style={MDesign.cardPergunta}>
+              
+              {/* 1. O ASTERISCO AGORA É CONDICIONAL */}
               <div style={MDesign.tituloPergunta}>
-                {p.texto} <span style={{ color: '#d93025' }}>*</span>
+                {p.texto} {p.obrigatoria && <span style={{ color: '#d93025' }}>*</span>}
               </div>
 
+              {/* 2. O REQUIRED NO TEXTO AGORA É CONDICIONAL */}
               {p.tipo === 'texto' && (
                 <input 
                   type="text" 
@@ -119,20 +141,36 @@ function Formulario() {
                   style={MDesign.inputTexto} 
                   onFocus={(e) => e.target.style.borderBottom = '2px solid rgb(103, 58, 183)'}
                   onBlur={(e) => e.target.style.borderBottom = '1px solid #d1d5db'}
-                  required 
+                  required={p.obrigatoria} 
                 />
               )}
 
+              {/* 3. O REQUIRED NO RADIO AGORA É CONDICIONAL */}
               {p.tipo === 'unica_escolha' && p.opcoes.map((opcao, oIndex) => (
                 <label key={oIndex} style={MDesign.labelOpcao}>
-                  <input type="radio" name={`pergunta_${pIndex}`} value={opcao} checked={respostas[p.texto] === opcao} onChange={(e) => lidarComMudanca(p.texto, e.target.value, 'unica_escolha')} style={MDesign.radioBox} required />
+                  <input 
+                    type="radio" 
+                    name={`pergunta_${pIndex}`} 
+                    value={opcao} 
+                    checked={respostas[p.texto] === opcao} 
+                    onChange={(e) => lidarComMudanca(p.texto, e.target.value, 'unica_escolha')} 
+                    style={MDesign.radioBox} 
+                    required={p.obrigatoria} 
+                  />
                   {opcao}
                 </label>
               ))}
 
+              {/* CHECKBOX: Em HTML padrão, colocar "required" em vários checkboxes exige que TODOS sejam marcados. Então para múltipla escolha deixamos livre. */}
               {p.tipo === 'multipla_escolha' && p.opcoes.map((opcao, oIndex) => (
                 <label key={oIndex} style={MDesign.labelOpcao}>
-                  <input type="checkbox" value={opcao} checked={(respostas[p.texto] || []).includes(opcao)} onChange={(e) => lidarComMudanca(p.texto, e.target.value, 'multipla_escolha', e.target.checked)} style={MDesign.radioBox} />
+                  <input 
+                    type="checkbox" 
+                    value={opcao} 
+                    checked={(respostas[p.texto] || []).includes(opcao)} 
+                    onChange={(e) => lidarComMudanca(p.texto, e.target.value, 'multipla_escolha', e.target.checked)} 
+                    style={MDesign.radioBox} 
+                  />
                   {opcao}
                 </label>
               ))}

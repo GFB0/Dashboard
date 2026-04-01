@@ -13,7 +13,7 @@ function Dashboard() {
 
   const [turmasParaSelect, setTurmasParaSelect] = useState([]);
   const [nomeTurma, setNomeTurma] = useState('');
-  const [perguntas, setPerguntas] = useState([{ texto: '', tipo: 'texto', opcoes: [] }]);
+  const [perguntas, setPerguntas] = useState([{ texto: '', tipo: 'texto', opcoes: [], obrigatoria: false }]);
   const [turmaSelecionada, setTurmaSelecionada] = useState('');
   const [textoAvaliacao, setTextoAvaliacao] = useState('');
   const [processando, setProcessando] = useState(false);
@@ -55,7 +55,9 @@ function Dashboard() {
           setTurmasDisponiveis(turmasUnicas);
 
           const horasEconomizadas = ((avaliacoes.length * 5) / 60).toFixed(1);
-          setKpis({ total: avaliacoes.length, horasPoupadas: horasEconomizadas, treinosAtivos: turmasUnicas.length });
+          const qtdTreinosAtivos = jsonTurmas.turmas ? jsonTurmas.turmas.filter(t => t.ativo !== false).length : 0;
+
+          setKpis({ total: avaliacoes.length, horasPoupadas: horasEconomizadas, treinosAtivos: qtdTreinosAtivos });
           
           setDadosTermometro([
             { name: 'Sucesso', value: contagemSentimentos['Sucesso'] },
@@ -88,16 +90,39 @@ function Dashboard() {
     return (
       <>
         <div style={Estilos.chartGrid}>
-          {perguntasFechadas.map((pergunta, index) => {
+         {perguntasFechadas.map((pergunta, index) => {
             const contagem = {};
+            
             dadosDestaTurma.forEach(av => {
               let resposta = av.respostas_ia[pergunta.texto];
-              if (resposta !== null && resposta !== undefined) {
-                if (Array.isArray(resposta)) resposta.forEach(r => contagem[r] = (contagem[r] || 0) + 1);
-                else contagem[resposta] = (contagem[resposta] || 0) + 1;
+              
+              // NOVO: Filtro inteligente para forçar a formatação exata da opção original
+              const normalizar = (texto) => {
+                 if (typeof texto !== 'string') return texto;
+                 const limpo = texto.trim().toLowerCase(); // Tira espaços extras e joga pra minúsculo
+                 // Procura nas opções originais se existe uma igualzinha
+                 const encontrada = (pergunta.opcoes || []).find(op => op.trim().toLowerCase() === limpo);
+                 return encontrada || texto.trim(); // Se achar, usa a original oficial. Se não, usa a limpa.
+              };
+
+              if (resposta === null || resposta === undefined || resposta === "") {
+                 contagem["Não Informado"] = (contagem["Não Informado"] || 0) + 1;
+              } else if (Array.isArray(resposta)) {
+                 if (resposta.length === 0) {
+                     contagem["Não Informado"] = (contagem["Não Informado"] || 0) + 1;
+                 } else {
+                     resposta.forEach(r => {
+                         const certinho = normalizar(r);
+                         contagem[certinho] = (contagem[certinho] || 0) + 1;
+                     });
+                 }
+              } else {
+                 const certinho = normalizar(resposta);
+                 contagem[certinho] = (contagem[certinho] || 0) + 1;
               }
             });
 
+            // O restante continua igual...x
             const dadosGrafico = Object.keys(contagem).map(chave => ({ nome: String(chave).substring(0, 25), valor: contagem[chave] }));
             if (dadosGrafico.length === 0) return null;
 
@@ -130,6 +155,7 @@ function Dashboard() {
           })}
         </div>
 
+        {/* PERGUNTAS ABERTAS */}
         {perguntasAbertas.length > 0 && (
           <div style={{ marginTop: '32px' }}>
             <h3 style={{ color: '#0f172a', fontSize: '18px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', marginBottom: '24px' }}>
@@ -156,6 +182,17 @@ function Dashboard() {
         )}
       </>
     );
+  };
+
+  const alternarStatusTemplate = async (id, statusAtual) => {
+    try {
+      await fetch(`http://localhost:8000/api/turmas/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativo: !statusAtual })
+      });
+      carregarDados(); // Atualiza a tela instantaneamente
+    } catch (err) { alert("Erro ao alterar status."); }
   };
 
   const salvarTurma = async (e) => {
@@ -455,6 +492,16 @@ function Dashboard() {
                       </select>
                       <button type="button" onClick={() => setPerguntas(perguntas.filter((_, i) => i !== pIndex))} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }} title="Remover pergunta">✕</button>
                     </div>
+                    {/* NOVO: CHECKBOX DE OBRIGATORIEDADE */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748b', marginTop: '12px', cursor: 'pointer' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={p.obrigatoria || false} 
+                        onChange={(e) => {const n=[...perguntas]; n[pIndex].obrigatoria=e.target.checked; setPerguntas(n);}} 
+                        style={{ accentColor: '#10b981', width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      Marcar esta pergunta como obrigatória
+                    </label>
 
                     {p.tipo !== 'texto' && (
                       <div style={{ paddingLeft: '24px', borderLeft: '2px solid #10b981', marginTop: '16px' }}>
@@ -471,7 +518,7 @@ function Dashboard() {
                   </div>
                 ))}
 
-                <button type="button" onClick={() => setPerguntas([...perguntas, { texto: '', tipo: 'texto', opcoes: [] }])} style={{ width: '100%', padding: '16px', background: 'transparent', color: '#10b981', border: '2px dashed #d1fae5', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', transition: '0.2s' }} onMouseOver={(e) => e.target.style.backgroundColor = '#f0fdf4'} onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}>+ Adicionar Novo Critério de Avaliação</button>
+                <button type="button" onClick={() => setPerguntas([...perguntas, { texto: '', tipo: 'texto', opcoes: [], obrigatoria: false }])} style={{ width: '100%', padding: '16px', background: 'transparent', color: '#10b981', border: '2px dashed #d1fae5', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', transition: '0.2s' }} onMouseOver={(e) => e.target.style.backgroundColor = '#f0fdf4'} onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}>+ Adicionar Novo Critério de Avaliação</button>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '24px', borderTop: '1px solid #f1f5f9' }}>
@@ -481,6 +528,49 @@ function Dashboard() {
               </div>
 
             </form>
+            {/* NOVA SEÇÃO: LISTA DE TEMPLATES CRIADOS */}
+            <div style={{ marginTop: '48px', paddingTop: '32px', borderTop: '2px solid #e2e8f0' }}>
+              <h3 style={{ margin: '0 0 24px 0', color: '#0f172a', fontSize: '18px' }}>Templates Cadastrados</h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {turmasParaSelect.map(t => (
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', opacity: t.ativo === false ? 0.6 : 1 }}>
+                    <div>
+                      <div style={{ fontWeight: '600', color: '#0f172a', fontSize: '15px' }}>
+                        {t.nome_treinamento} 
+                        {t.ativo === false && <span style={{ marginLeft: '8px', fontSize: '11px', backgroundColor: '#ef4444', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Inativo</span>}
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
+                        ID: {t.id} • {t.perguntas_json ? t.perguntas_json.length : 0} critérios mapeados
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      
+                      {/* NOVO BOTÃO: ACESSAR LINK DO FORMULÁRIO */}
+                      <a 
+                        href={`/responder/${t.id}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={{ padding: '8px 16px', backgroundColor: '#e0f2fe', color: '#0284c7', textDecoration: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', transition: '0.2s' }}
+                        title="Abrir formulário em uma nova aba"
+                        onMouseOver={(e) => e.target.style.backgroundColor = '#bae6fd'}
+                        onMouseOut={(e) => e.target.style.backgroundColor = '#e0f2fe'}
+                      >
+                        🔗 Acessar Link
+                      </a>
+
+                      {/* BOTÃO EXISTENTE DE ATIVAR/DESATIVAR */}
+                      <button 
+                        onClick={() => alternarStatusTemplate(t.id, t.ativo !== false)}
+                        style={{ padding: '8px 16px', backgroundColor: t.ativo === false ? '#10b981' : '#f1f5f9', color: t.ativo === false ? '#fff' : '#64748b', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: '0.2s' }}
+                      >
+                        {t.ativo === false ? 'Ativar' : 'Desativar'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
