@@ -50,8 +50,8 @@ def api_listar_turmas():
         return {"sucesso": True, "turmas": listar_turmas_do_banco()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-# ... (início do main.py) ...
 
+# ROTA 3: Avalia o texto bruto via IA (Agora com suporte a Lotes/Múltiplas Avaliações)
 @app.post("/api/avaliar")
 def avaliar_texto_dinamico(dados: AvaliacaoDinamicaInput):
     try:
@@ -65,49 +65,68 @@ def avaliar_texto_dinamico(dados: AvaliacaoDinamicaInput):
         instrucoes_perguntas = ""
         for p in perguntas_admin:
             if p['tipo'] == 'unica_escolha':
-                instrucoes_perguntas += f"- '{p['texto']}': Responda ESTRITAMENTE com UMA destas opções: {p['opcoes']} ou null.\n"
+                instrucoes_perguntas += f"- '{p['texto']}': Responda ESTRITAMENTE com UMA destas opções exatas: {p['opcoes']}. Se o texto não contiver a informação, ou se a resposta for ambígua, retorne null.\n"
             elif p['tipo'] == 'multipla_escolha':
-                instrucoes_perguntas += f"- '{p['texto']}': Responda com uma LISTA contendo uma ou mais destas opções: {p['opcoes']} ou null.\n"
+                instrucoes_perguntas += f"- '{p['texto']}': Responda com uma LISTA contendo uma ou mais destas opções: {p['opcoes']}. Se não houver menção clara, retorne null.\n"
             else:
-                instrucoes_perguntas += f"- '{p['texto']}': (Pergunta Aberta) Extraia os pontos principais e resuma em até 10 palavras.\n"
+                instrucoes_perguntas += f"- '{p['texto']}': (Pergunta Aberta) Extraia os pontos principais e resuma em até 10 palavras. Se o texto não falar sobre isso, retorne null.\n"
 
         prompt = f"""
         Você é um agente de Inteligência de Treinamentos. Seu trabalho é extrair dados de avaliações de instrutores.
         
-        REGRAS DE EXTRAÇÃO:
+        ATENÇÃO - MODO EM LOTE: O texto recebido pode conter o relato de MÚLTIPLAS avaliações (ex: vários instrutores ou turmas diferentes relatados de uma vez). 
+        Identifique CADA avaliação/pessoa distinta mencionada no texto e gere um relatório separado para cada uma.
+        
+        REGRAS DE EXTRAÇÃO PARA CADA AVALIAÇÃO IDENTIFICADA:
         {instrucoes_perguntas}
         
         MÉTRICA UNIVERSAL OBRIGATÓRIA:
-        Independente das perguntas acima, classifique o sentimento/saúde geral deste treinamento em UMA destas 3 categorias exatas: "Sucesso", "Atenção" ou "Crítico".
+        Para cada avaliação, classifique o sentimento geral ("Sucesso", "Atenção" ou "Crítico").
         
-        Texto recebido do instrutor: "{dados.texto_avaliacao}"
+        Texto recebido do coordenador: "{dados.texto_avaliacao}"
         
-        Devolva APENAS um JSON válido nesta estrutura exata:
-        {{
-            "sentimento_geral": "Sua classificação (Sucesso/Atenção/Crítico)",
-            "respostas": {{
-                "Pergunta 1": "Resposta",
-                "Pergunta 2": "Resposta"
+        Devolva APENAS um JSON válido contendo uma LISTA (Array) de objetos. Mesmo se houver apenas uma avaliação, devolva dentro de uma lista. 
+        A estrutura exata exigida é:
+        [
+            {{
+                "alvo_identificado": "Nome do instrutor/turma desta avaliação específica (Ex: Nilza)",
+                "sentimento_geral": "Sucesso/Atenção/Crítico",
+                "respostas": {{
+                    "Pergunta 1": "Resposta",
+                    "Pergunta 2": "Resposta"
+                }},
+                "resumo_ia": "Um resumo executivo focado APENAS no que aconteceu com ESTA pessoa/turma."
             }},
-            "resumo_ia": "Um resumo executivo de 1 a 2 frases sobre o comportamento e aprendizagem da turma."
-        }}
+            {{ ... (próxima avaliação, se houver) ... }}
+        ]
         """
         
         resposta_ia = cliente_gemini.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         texto_limpo = resposta_ia.text.strip().replace("```json", "").replace("```", "")
-        resultado_json = json.loads(texto_limpo)
+        resultados_json = json.loads(texto_limpo)
         
-        # Junta o sentimento geral ao resumo para salvar no banco
-        resumo_com_sentimento = f"[{resultado_json.get('sentimento_geral', 'Neutro')}] {resultado_json.get('resumo_ia', '')}"
+        # Garante que o resultado seja sempre uma lista para podermos iterar
+        if not isinstance(resultados_json, list):
+            resultados_json = [resultados_json]
+            
+        registros_salvos = []
         
-        salvo_no_banco = salvar_avaliacao_dinamica(
-            turma_id=dados.turma_id,
-            texto=dados.texto_avaliacao,
-            respostas_json=resultado_json.get("respostas", {}),
-            resumo=resumo_com_sentimento
-        )
+        # Faz um loop para salvar cada avaliação encontrada de forma independente
+        for resultado in resultados_json:
+            alvo = resultado.get("alvo_identificado", "Desconhecido")
+            resumo_base = resultado.get("resumo_ia", "")
+            
+            resumo_com_sentimento = f"[{resultado.get('sentimento_geral', 'Neutro')}] {resumo_base}"
+            
+            salvo_no_banco = salvar_avaliacao_dinamica(
+                turma_id=dados.turma_id,
+                texto=dados.texto_avaliacao, # Mantém o texto original completo como lastro (auditoria)
+                respostas_json=resultado.get("respostas", {}),
+                resumo=resumo_com_sentimento
+            )
+            registros_salvos.append(salvo_no_banco)
         
-        return {"sucesso": True, "dados_salvos": salvo_no_banco}
+        return {"sucesso": True, "dados_salvos": registros_salvos}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -328,6 +328,8 @@ function Dashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
+                    {/* NOVA COLUNA: DATA */}
+                    <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: '600', width: '150px' }}>Data / Hora</th>
                     <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: '600' }}>Jornada</th>
                     <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: '600' }}>Insights Consolidados (IA)</th>
                     <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'center', borderBottom: '1px solid #e2e8f0', fontWeight: '600' }}>Termômetro</th>
@@ -336,14 +338,25 @@ function Dashboard() {
                 <tbody>
                   {dadosBrutos
                     .filter(item => filtroTurma === 'global' || item.turmas?.id === parseInt(filtroTurma))
-                    .slice(-10).reverse().map((item) => {
+                    // ORDENAÇÃO EXPLÍCITA: Pega a data de criação e força o mais novo a ficar no topo
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    .slice(0, 10) // Pega os 10 primeiros (que agora são os 10 mais recentes garantidos)
+                    .map((item) => {
                       const match = item.resumo_ia?.match(/\[(.*?)\]/);
                       const sentimento = match ? match[1] : 'Neutro';
                       const corBadge = sentimento === 'Sucesso' ? '#10b981' : sentimento === 'Crítico' ? '#ef4444' : '#f59e0b';
                       const resumoLimpo = item.resumo_ia?.replace(/\[.*?\]\s*/, '') || "Resumo não disponível";
+                      
+                      // FORMATAÇÃO DA DATA (Padrão Brasileiro)
+                      const dataFormatada = new Date(item.created_at).toLocaleString('pt-BR', { 
+                        day: '2-digit', month: '2-digit', year: 'numeric', 
+                        hour: '2-digit', minute: '2-digit' 
+                      });
 
                       return (
                       <tr key={item.id}>
+                        {/* CÉLULA DA DATA */}
+                        <td style={{...Estilos.tabelaCelula, color: '#64748b', fontSize: '13px', whiteSpace: 'nowrap'}}>{dataFormatada}</td>
                         <td style={{...Estilos.tabelaCelula, fontWeight: '600', color: '#0f172a'}}>{item.turmas?.nome_treinamento}</td>
                         <td style={{...Estilos.tabelaCelula, color: '#475569', lineHeight: '1.5'}}>{resumoLimpo}</td>
                         <td style={{...Estilos.tabelaCelula, textAlign: 'center'}}>
