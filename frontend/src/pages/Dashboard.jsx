@@ -23,12 +23,12 @@ function Dashboard() {
 
   const carregarDados = async () => {
     try {
-      const resTurmas = await fetch('http://localhost:8000/api/turmas');
+      const resTurmas = await fetch(import.meta.env.VITE_API_URL + '/api/turmas');
       const jsonTurmas = await resTurmas.json();
       if (jsonTurmas.sucesso) setTurmasParaSelect(jsonTurmas.turmas);
 
       if (abaAtiva === 'painel') {
-        const resDash = await fetch('http://localhost:8000/api/dashboard');
+        const resDash = await fetch(import.meta.env.VITE_API_URL + '/api/dashboard');
         const jsonDash = await resDash.json();
         
         if (jsonDash.sucesso) {
@@ -186,7 +186,7 @@ function Dashboard() {
 
   const alternarStatusTemplate = async (id, statusAtual) => {
     try {
-      await fetch(`http://localhost:8000/api/turmas/${id}/status`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/turmas/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ativo: !statusAtual })
@@ -199,7 +199,7 @@ function Dashboard() {
     e.preventDefault(); setProcessando(true);
     const validas = perguntas.filter(p => p.texto.trim() !== '');
     try {
-      await fetch('http://localhost:8000/api/turmas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome_treinamento: nomeTurma, perguntas: validas }) });
+      await fetch(import.meta.env.VITE_API_URL + '/api/turmas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome_treinamento: nomeTurma, perguntas: validas }) });
       alert("Sucesso!"); setNomeTurma(''); setPerguntas([{ texto: '', tipo: 'texto', opcoes: [] }]); carregarDados();
     } catch (err) { alert("Erro."); } finally { setProcessando(false); }
   };
@@ -207,7 +207,7 @@ function Dashboard() {
   const enviarParaAgente = async (e) => {
     e.preventDefault(); setProcessando(true);
     try {
-      await fetch('http://localhost:8000/api/avaliar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ turma_id: parseInt(turmaSelecionada), texto_avaliacao: textoAvaliacao }) });
+      await fetch(import.meta.env.VITE_API_URL + '/api/avaliar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ turma_id: parseInt(turmaSelecionada), texto_avaliacao: textoAvaliacao }) });
       alert("Sucesso!"); setTextoAvaliacao(''); setAbaAtiva('painel'); carregarDados();
     } catch (err) { alert("Erro na IA."); } finally { setProcessando(false); }
   };
@@ -246,23 +246,67 @@ function Dashboard() {
 
       <div style={Estilos.main}>
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-          <div>
-            <h1 style={{ fontSize: '24px', color: '#0f172a', margin: 0 }}>Hub de Treinamentos</h1>
+        {/* CABEÇALHO MINIMALISTA */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', borderBottom: '1px solid #f1f5f9', paddingBottom: '24px' }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            <h1 style={{ fontSize: '24px', color: '#0f172a', margin: 0, fontWeight: '700', letterSpacing: '-0.5px' }}>
+              {abaAtiva === 'painel' ? 'Performance' : abaAtiva === 'agente' ? 'Motor de IA' : 'Construtor'}
+            </h1>
+
+            {/* SELETOR DE DASHBOARD (Aparece apenas no Painel) */}
             {abaAtiva === 'painel' && (
-              <select 
-                value={filtroTurma} 
-                onChange={(e) => setFiltroTurma(e.target.value)}
-                style={{ marginTop: '12px', padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', color: '#0f172a', outline: 'none', backgroundColor: '#fff', cursor: 'pointer', fontWeight: '500', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
-              >
-                <option value="global">🌍 Metamétricas Globais (Todos os Treinamentos)</option>
-                {turmasDisponiveis.map(t => (
-                  <option key={t.id} value={t.id}>📌 Aprofundar em: {t.nome_treinamento}</option>
-                ))}
-              </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderLeft: '2px solid #e2e8f0', paddingLeft: '24px' }}>
+                <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Visualizando</span>
+                
+                <div style={{ position: 'relative' }}>
+                  <select 
+                    value={filtroTurma} 
+                    onChange={(e) => setFiltroTurma(e.target.value)}
+                    style={{ 
+                      appearance: 'none', /* Remove a seta feia do navegador */
+                      backgroundColor: '#f8fafc', 
+                      border: '1px solid #e2e8f0', 
+                      borderRadius: '24px', /* Formato de pílula */
+                      padding: '8px 40px 8px 16px', 
+                      fontSize: '14px', 
+                      color: '#334155', 
+                      fontWeight: '600',
+                      outline: 'none', 
+                      cursor: 'pointer', 
+                      transition: 'all 0.2s ease',
+                      minWidth: '180px'
+                    }}
+                    onMouseOver={(e) => { e.target.style.backgroundColor = '#f1f5f9'; e.target.style.borderColor = '#cbd5e1'; }}
+                    onMouseOut={(e) => { e.target.style.backgroundColor = '#f8fafc'; e.target.style.borderColor = '#e2e8f0'; }}
+                  >
+                    <option value="global">Visão Global</option>
+                    <optgroup label="Jornadas Específicas" style={{ color: '#94a3b8', fontStyle: 'normal', fontWeight: '600' }}>
+                      {turmasDisponiveis.map(t => (
+                        <option key={t.id} value={t.id} style={{ color: '#0f172a' }}>
+                          {t.nome_treinamento}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  
+                  {/* Seta SVG Customizada e minimalista */}
+                  <svg style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
             )}
           </div>
-          <div style={{ padding: '8px 16px', background: '#fff', borderRadius: '20px', border: '1px solid #e2e8f0', color: '#334155', fontWeight: '600' }}>Coordenação AD</div>
+
+          {/* AVATAR DO USUÁRIO */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+             <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '500' }}>Coordenação</span>
+             <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '700', border: '1px solid #dcfce7' }}>
+               AD
+             </div>
+          </div>
+
         </div>
 
         {/* --- TELA 1: DASHBOARD --- */}
@@ -548,7 +592,7 @@ function Dashboard() {
               </div>
 
             </form>
-{/* SEÇÃO REDESENHADA: GRID DE TEMPLATES CADASTRADOS */}
+            {/* SEÇÃO REDESENHADA: GRID DE TEMPLATES CADASTRADOS */}
             <div style={{ marginTop: '48px', paddingTop: '32px', borderTop: '2px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <h3 style={{ margin: 0, color: '#0f172a', fontSize: '18px' }}>Gerenciamento de Templates</h3>
