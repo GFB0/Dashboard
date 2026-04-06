@@ -15,7 +15,17 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 cliente_gemini = genai.Client(api_key=GEMINI_API_KEY)
 
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    # Liberamos para qualquer link (Vercel, localhost, etc) acessar:
+    allow_origins=["*"], 
+    
+    # MUDANÇA AQUI: Como liberamos para "*", o credentials obrigatoriamente tem que ser False
+    allow_credentials=False, 
+    
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- NOVOS MODELOS DE DADOS PARA SUPORTAR CHECKBOXES ---
 class PerguntaInput(BaseModel):
