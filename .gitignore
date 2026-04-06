@@ -23,14 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
-# Ignorar variáveis de ambiente (Crucial para segurança)
-backend/.env
-# Ignorar ambiente virtual e caches do Python (Backend)
+# Variáveis de ambiente
+.env
+.env.*
+
+# Python
 venv/
 __pycache__/
 *.pyc
-
-# Ignorar dependências e builds do Node/React (Frontend)
-node_modules/
-dist/
-.DS_Store
