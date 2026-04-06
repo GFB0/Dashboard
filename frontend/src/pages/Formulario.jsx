@@ -13,7 +13,7 @@ function Formulario() {
     // Busca as perguntas deste formulário específico assim que a página carrega
     const buscarFormulario = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/turmas/${id}`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/turmas/${id}`);
         const json = await res.json();
         if (json.sucesso) setTurma(json.turma);
         else setErro("Formulário não encontrado.");
@@ -42,7 +42,7 @@ function Formulario() {
     e.preventDefault();
     setEnviando(true);
     try {
-      const res = await fetch('http://localhost:8000/api/avaliar_manual', {
+      const res = await fetch(import.meta.env.VITE_API_URL + '/api/avaliar_manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ turma_id: parseInt(id), respostas: respostas }),
