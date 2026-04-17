@@ -4,6 +4,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContaine
 function Dashboard() {
   const [abaAtiva, setAbaAtiva] = useState('painel'); 
   const [filtroTurma, setFiltroTurma] = useState('global'); 
+  const [menuAberto, setMenuAberto] = useState(false);
+  const [larguraJanela, setLarguraJanela] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   
   const [dadosBrutos, setDadosBrutos] = useState([]);
   const [kpis, setKpis] = useState({ total: 0, horasPoupadas: 0, treinosAtivos: 0 });
@@ -75,7 +77,17 @@ function Dashboard() {
     } catch (err) { console.error(err); }
   };
 
-  useEffect(() => { carregarDados(); }, [abaAtiva]);
+  useEffect(() => {
+    carregarDados();
+    const handleResize = () => {
+      setLarguraJanela(window.innerWidth);
+      if (window.innerWidth > 1024) setMenuAberto(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [abaAtiva]);
+
+  const isMobile = larguraJanela <= 1024;
 
   const gerarGraficosEspecificos = () => {
     if (filtroTurma === 'global') return null;
@@ -89,22 +101,17 @@ function Dashboard() {
 
     return (
       <>
-        <div style={Estilos.chartGrid}>
+        <div style={Estilos.chartGrid(isMobile)}>
          {perguntasFechadas.map((pergunta, index) => {
             const contagem = {};
-            
             dadosDestaTurma.forEach(av => {
               let resposta = av.respostas_ia[pergunta.texto];
-              
-              // NOVO: Filtro inteligente para forçar a formatação exata da opção original
               const normalizar = (texto) => {
                  if (typeof texto !== 'string') return texto;
-                 const limpo = texto.trim().toLowerCase(); // Tira espaços extras e joga pra minúsculo
-                 // Procura nas opções originais se existe uma igualzinha
+                 const limpo = texto.trim().toLowerCase();
                  const encontrada = (pergunta.opcoes || []).find(op => op.trim().toLowerCase() === limpo);
-                 return encontrada || texto.trim(); // Se achar, usa a original oficial. Se não, usa a limpa.
+                 return encontrada || texto.trim();
               };
-
               if (resposta === null || resposta === undefined || resposta === "") {
                  contagem["Não Informado"] = (contagem["Não Informado"] || 0) + 1;
               } else if (Array.isArray(resposta)) {
@@ -122,10 +129,8 @@ function Dashboard() {
               }
             });
 
-            // O restante continua igual...x
             const dadosGrafico = Object.keys(contagem).map(chave => ({ nome: String(chave).substring(0, 25), valor: contagem[chave] }));
             if (dadosGrafico.length === 0) return null;
-
             const usarPizza = dadosGrafico.length <= 4;
 
             return (
@@ -155,13 +160,13 @@ function Dashboard() {
           })}
         </div>
 
-        {/* PERGUNTAS ABERTAS */}
+          {/* PERGUNTAS ABERTAS */}
         {perguntasAbertas.length > 0 && (
           <div style={{ marginTop: '32px' }}>
             <h3 style={{ color: '#0f172a', fontSize: '18px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', marginBottom: '24px' }}>
               Comentários e Observações (Texto Livre)
             </h3>
-            <div style={Estilos.cardGrid}>
+            <div style={Estilos.cardGrid(isMobile)}>
               {perguntasAbertas.map((pergunta, index) => (
                 <div key={`aberta-${index}`} style={{...Estilos.card, backgroundColor: '#f8fafc'}}>
                   <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#334155' }}>{pergunta.texto}</h4>
@@ -191,7 +196,7 @@ function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ativo: !statusAtual })
       });
-      carregarDados(); // Atualiza a tela instantaneamente
+      carregarDados();
     } catch (err) { alert("Erro ao alterar status."); }
   };
 
@@ -208,19 +213,55 @@ function Dashboard() {
     e.preventDefault(); setProcessando(true);
     try {
       await fetch(import.meta.env.VITE_API_URL + '/api/avaliar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ turma_id: parseInt(turmaSelecionada), texto_avaliacao: textoAvaliacao }) });
-      alert("Sucesso!"); setTextoAvaliacao(''); setAbaAtiva('painel'); carregarDados();
-    } catch (err) { alert("Erro na IA."); } finally { setProcessando(false); }
+      alert("Sucesso!"); setTextoAvaliacao(''); carregarDados();
+    } catch (err) { alert("Erro."); } finally { setProcessando(false); }
   };
 
   // --- ESTILOS MODERNOS ---
   const Estilos = {
-    layout: { display: 'flex', minHeight: '100vh', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" },
-    sidebar: { width: '260px', backgroundColor: '#0f172a', color: '#fff', display: 'flex', flexDirection: 'column' },
+    layout: { display: 'flex', minHeight: '100vh', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif", position: 'relative' },
+    sidebar: (aberto, mobile) => ({ 
+      width: '260px', 
+      backgroundColor: '#0f172a', 
+      color: '#fff', 
+      display: 'flex', 
+      flexDirection: 'column',
+      position: mobile ? 'fixed' : 'relative',
+      left: mobile ? (aberto ? '0' : '-260px') : '0',
+      top: 0,
+      bottom: 0,
+      zIndex: 1000,
+      transition: 'left 0.3s ease',
+      boxShadow: mobile && aberto ? '10px 0 30px rgba(0,0,0,0.5)' : 'none'
+    }),
+    overlay: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      zIndex: 999,
+      display: 'block'
+    },
+    hamburger: {
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-around',
+      width: '24px',
+      height: '20px',
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      padding: 0,
+      zIndex: 1001,
+      position: 'relative'
+    },
     logo: { padding: '24px', fontSize: '20px', fontWeight: '800', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: '12px' },
     menuItem: (ativo) => ({ padding: '16px 24px', cursor: 'pointer', backgroundColor: ativo ? '#1e293b' : 'transparent', borderLeft: ativo ? '4px solid #3b82f6' : '4px solid transparent', color: ativo ? '#fff' : '#94a3b8', fontSize: '14px', transition: '0.2s' }),
-    main: { flex: 1, padding: '32px', overflowY: 'auto', height: '100vh', boxSizing: 'border-box' },
-    cardGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', marginBottom: '32px' },
-    chartGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '32px' },
+    main: (mobile) => ({ flex: 1, padding: mobile ? '20px' : '32px', overflowY: 'auto', height: '100vh', boxSizing: 'border-box' }),
+    cardGrid: (mobile) => ({ display: 'grid', gridTemplateColumns: mobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', marginBottom: '32px' }),
+    chartGrid: (mobile) => ({ display: 'grid', gridTemplateColumns: mobile ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '32px' }),
     card: { backgroundColor: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' },
     tabelaCelula: { padding: '16px', color: '#334155', fontSize: '14px', borderBottom: '1px solid #e2e8f0' }
   };
@@ -228,78 +269,55 @@ function Dashboard() {
   return (
     <div style={Estilos.layout}>
       
-      <div style={Estilos.sidebar}>
-        <div style={Estilos.logo}><div style={{ width: '28px', height: '28px', background: '#3b82f6', borderRadius: '6px' }}></div> Training Intelligence</div>
-          <div style={{...Estilos.menuItem(abaAtiva === 'painel'), display: 'flex', alignItems: 'center', gap: '12px'}} onClick={() => setAbaAtiva('painel')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-            Visão Global / Relatórios
-          </div>
-          <div style={{...Estilos.menuItem(abaAtiva === 'agente'), display: 'flex', alignItems: 'center', gap: '12px'}} onClick={() => setAbaAtiva('agente')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
-            Agente de Extração (IA)
-          </div>
-          <div style={{...Estilos.menuItem(abaAtiva === 'criar'), display: 'flex', alignItems: 'center', gap: '12px'}} onClick={() => setAbaAtiva('criar')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            Construtor de Templates
-          </div>
+      {isMobile && menuAberto && <div style={Estilos.overlay} onClick={() => setMenuAberto(false)} />}
+
+      <div style={Estilos.sidebar(menuAberto, isMobile)}>
+        <div style={Estilos.logo}>
+          <div style={{ width: '28px', height: '28px', background: '#3b82f6', borderRadius: '6px' }}></div> 
+          Training Intelligence
+        </div>
+        <div style={{...Estilos.menuItem(abaAtiva === 'painel'), display: 'flex', alignItems: 'center', gap: '12px'}} onClick={() => { setAbaAtiva('painel'); setMenuAberto(false); }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          Visão Global / Relatórios
+        </div>
+        <div style={{...Estilos.menuItem(abaAtiva === 'agente'), display: 'flex', alignItems: 'center', gap: '12px'}} onClick={() => { setAbaAtiva('agente'); setMenuAberto(false); }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+          Agente de Extração (IA)
+        </div>
+        <div style={{...Estilos.menuItem(abaAtiva === 'criar'), display: 'flex', alignItems: 'center', gap: '12px'}} onClick={() => { setAbaAtiva('criar'); setMenuAberto(false); }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Construtor de Templates
+        </div>
       </div>
 
-      <div style={Estilos.main}>
+      <div style={Estilos.main(isMobile)}>
         
-        {/* CABEÇALHO MINIMALISTA */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', borderBottom: '1px solid #f1f5f9', paddingBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? '24px' : '40px', borderBottom: '1px solid #f1f5f9', paddingBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <h1 style={{ fontSize: '24px', color: '#0f172a', margin: 0, fontWeight: '700', letterSpacing: '-0.5px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '24px' }}>
+            {isMobile && !menuAberto && (
+              <button style={Estilos.hamburger} onClick={() => setMenuAberto(true)}>
+                <div style={{ width: '100%', height: '2px', background: '#0f172a', borderRadius: '2px' }}></div>
+                <div style={{ width: '100%', height: '2px', background: '#0f172a', borderRadius: '2px' }}></div>
+                <div style={{ width: '100%', height: '2px', background: '#0f172a', borderRadius: '2px' }}></div>
+              </button>
+            )}
+            <h1 style={{ fontSize: isMobile ? '20px' : '24px', color: '#0f172a', margin: 0, fontWeight: '700', letterSpacing: '-0.5px' }}>
               {abaAtiva === 'painel' ? 'Performance' : abaAtiva === 'agente' ? 'Motor de IA' : 'Construtor'}
             </h1>
 
-            {/* SELETOR DE DASHBOARD (Aparece apenas no Painel) */}
-            {abaAtiva === 'painel' && (
+            {abaAtiva === 'painel' && !isMobile && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderLeft: '2px solid #e2e8f0', paddingLeft: '24px' }}>
                 <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Visualizando</span>
-                
-                <div style={{ position: 'relative' }}>
-                  <select 
-                    value={filtroTurma} 
-                    onChange={(e) => setFiltroTurma(e.target.value)}
-                    style={{ 
-                      appearance: 'none', /* Remove a seta feia do navegador */
-                      backgroundColor: '#f8fafc', 
-                      border: '1px solid #e2e8f0', 
-                      borderRadius: '24px', /* Formato de pílula */
-                      padding: '8px 40px 8px 16px', 
-                      fontSize: '14px', 
-                      color: '#334155', 
-                      fontWeight: '600',
-                      outline: 'none', 
-                      cursor: 'pointer', 
-                      transition: 'all 0.2s ease',
-                      minWidth: '180px'
-                    }}
-                    onMouseOver={(e) => { e.target.style.backgroundColor = '#f1f5f9'; e.target.style.borderColor = '#cbd5e1'; }}
-                    onMouseOut={(e) => { e.target.style.backgroundColor = '#f8fafc'; e.target.style.borderColor = '#e2e8f0'; }}
-                  >
-                    <option value="global">Visão Global</option>
-                    <optgroup label="Jornadas Específicas" style={{ color: '#94a3b8', fontStyle: 'normal', fontWeight: '600' }}>
-                      {turmasDisponiveis.map(t => (
-                        <option key={t.id} value={t.id} style={{ color: '#0f172a' }}>
-                          {t.nome_treinamento}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                  
-                  {/* Seta SVG Customizada e minimalista */}
-                  <svg style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </div>
+                <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', color: '#0f172a', fontSize: '13px', fontWeight: '600', outline: 'none', cursor: 'pointer' }}>
+                  <option value="global">Todos os Treinamentos</option>
+                  {turmasDisponiveis.map(t => <option key={t.id} value={t.id}>{t.nome_treinamento}</option>)}
+                </select>
               </div>
             )}
           </div>
 
-          {/* AVATAR DO USUÁRIO */}
+            {/* AVATAR DO USUÁRIO */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
              <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '500' }}>Coordenação</span>
              <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '700', border: '1px solid #dcfce7' }}>
@@ -307,6 +325,15 @@ function Dashboard() {
              </div>
           </div>
 
+          {abaAtiva === 'painel' && isMobile && (
+            <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#fff', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase' }}>Filtro:</span>
+              <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ flex: 1, padding: '4px', border: 'none', backgroundColor: 'transparent', color: '#0f172a', fontSize: '13px', fontWeight: '600', outline: 'none' }}>
+                <option value="global">Todos os Treinamentos</option>
+                {turmasDisponiveis.map(t => <option key={t.id} value={t.id}>{t.nome_treinamento}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* --- TELA 1: DASHBOARD --- */}
@@ -314,7 +341,7 @@ function Dashboard() {
           <>
             {filtroTurma === 'global' ? (
               <>
-                <div style={Estilos.cardGrid}>
+                <div style={Estilos.cardGrid(isMobile)}>
                   <div style={{...Estilos.card, borderLeft: '4px solid #3b82f6'}}>
                     <div style={{fontSize: '13px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase'}}>Avaliações Processadas</div>
                     <div style={{fontSize: '32px', fontWeight: '800', marginTop: '8px', color: '#0f172a'}}>{kpis.total}</div>
@@ -330,7 +357,7 @@ function Dashboard() {
                   </div>
                 </div>
 
-                <div style={Estilos.chartGrid}>
+                <div style={Estilos.chartGrid(isMobile)}>
                  <div style={Estilos.card}>
                     <h3 style={{ marginTop: 0, fontSize: '16px', color: '#0f172a', marginBottom: '8px' }}>Saúde Geral das Formações</h3>
                     <span style={{ fontSize: '13px', color: '#64748b' }}>Análise de sentimento baseada nos textos (IA)</span>
@@ -371,56 +398,52 @@ function Dashboard() {
               gerarGraficosEspecificos()
             )}
 
-            {/* TABELA DE FEED */}
-            <div style={{...Estilos.card, padding: 0, overflow: 'hidden', marginTop: '32px'}}>
+            <div style={{...Estilos.card, padding: 0, overflowX: 'auto', marginTop: '32px'}}>
               <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0' }}>
                 <h3 style={{ margin: 0, fontSize: '16px' }}>Log Analítico de Avaliações</h3>
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    {/* NOVA COLUNA: DATA */}
-                    <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: '600', width: '150px' }}>Data / Hora</th>
-                    <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: '600' }}>Jornada</th>
-                    <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: '600' }}>Insights Consolidados (IA)</th>
-                    <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'center', borderBottom: '1px solid #e2e8f0', fontWeight: '600' }}>Termômetro</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dadosBrutos
-                    .filter(item => filtroTurma === 'global' || item.turmas?.id === parseInt(filtroTurma))
-                    // ORDENAÇÃO EXPLÍCITA: Pega a data de criação e força o mais novo a ficar no topo
-                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-                    .slice(0, 10) // Pega os 10 primeiros (que agora são os 10 mais recentes garantidos)
-                    .map((item) => {
-                      const match = item.resumo_ia?.match(/\[(.*?)\]/);
-                      const sentimento = match ? match[1] : 'Neutro';
-                      const corBadge = sentimento === 'Sucesso' ? '#10b981' : sentimento === 'Crítico' ? '#ef4444' : '#f59e0b';
-                      const resumoLimpo = item.resumo_ia?.replace(/\[.*?\]\s*/, '') || "Resumo não disponível";
-                      
-                      // FORMATAÇÃO DA DATA (Padrão Brasileiro)
-                      const dataFormatada = new Date(item.created_at).toLocaleString('pt-BR', { 
-                        day: '2-digit', month: '2-digit', year: 'numeric', 
-                        hour: '2-digit', minute: '2-digit' 
-                      });
+              <div style={{ minWidth: '800px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: '600', width: '150px' }}>Data / Hora</th>
+                      <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: '600' }}>Jornada</th>
+                      <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: '600' }}>Insights Consolidados (IA)</th>
+                      <th style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', padding: '16px', textAlign: 'center', borderBottom: '1px solid #e2e8f0', fontWeight: '600' }}>Termômetro</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dadosBrutos
+                      .filter(item => filtroTurma === 'global' || item.turmas?.id === parseInt(filtroTurma))
+                      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                      .slice(0, 10)
+                      .map((item) => {
+                        const match = item.resumo_ia?.match(/\[(.*?)\]/);
+                        const sentimento = match ? match[1] : 'Neutro';
+                        const corBadge = sentimento === 'Sucesso' ? '#10b981' : sentimento === 'Crítico' ? '#ef4444' : '#f59e0b';
+                        const resumoLimpo = item.resumo_ia?.replace(/\[.*?\]\s*/, '') || "Resumo não disponível";
+                        const dataFormatada = new Date(item.created_at).toLocaleString('pt-BR', { 
+                          day: '2-digit', month: '2-digit', year: 'numeric', 
+                          hour: '2-digit', minute: '2-digit' 
+                        });
 
-                      return (
-                      <tr key={item.id}>
-                        {/* CÉLULA DA DATA */}
-                        <td style={{...Estilos.tabelaCelula, color: '#64748b', fontSize: '13px', whiteSpace: 'nowrap'}}>{dataFormatada}</td>
-                        <td style={{...Estilos.tabelaCelula, fontWeight: '600', color: '#0f172a'}}>{item.turmas?.nome_treinamento}</td>
-                        <td style={{...Estilos.tabelaCelula, color: '#475569', lineHeight: '1.5'}}>{resumoLimpo}</td>
-                        <td style={{...Estilos.tabelaCelula, textAlign: 'center'}}>
-                          {sentimento !== 'Neutro' ? (
-                            <span style={{ border: `1px solid ${corBadge}`, color: corBadge, padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', backgroundColor: `${corBadge}10` }}>
-                              {sentimento}
-                            </span>
-                          ) : <span style={{color: '#cbd5e1'}}>-</span>}
-                        </td>
-                      </tr>
-                    )})}
-                </tbody>
-              </table>
+                        return (
+                        <tr key={item.id}>
+                          <td style={{...Estilos.tabelaCelula, color: '#64748b', fontSize: '13px', whiteSpace: 'nowrap'}}>{dataFormatada}</td>
+                          <td style={{...Estilos.tabelaCelula, fontWeight: '600', color: '#0f172a'}}>{item.turmas?.nome_treinamento}</td>
+                          <td style={{...Estilos.tabelaCelula, color: '#475569', lineHeight: '1.5'}}>{resumoLimpo}</td>
+                          <td style={{...Estilos.tabelaCelula, textAlign: 'center'}}>
+                            {sentimento !== 'Neutro' ? (
+                              <span style={{ border: `1px solid ${corBadge}`, color: corBadge, padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', backgroundColor: `${corBadge}10` }}>
+                                {sentimento}
+                              </span>
+                            ) : <span style={{color: '#cbd5e1'}}>-</span>}
+                          </td>
+                        </tr>
+                      )})}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </>
         )}
@@ -481,7 +504,7 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', paddingTop: '24px', borderTop: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '16px' }}>
                 <span style={{ fontSize: '13px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ position: 'relative', display: 'flex', width: '10px', height: '10px' }}>
                     <span style={{ position: 'absolute', width: '100%', height: '100%', borderRadius: '50%', backgroundColor: '#10b981', opacity: '0.7', animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite' }}></span>
@@ -494,6 +517,7 @@ function Dashboard() {
                   type="submit" 
                   disabled={processando} 
                   style={{ 
+                    width: isMobile ? '100%' : 'auto',
                     padding: '14px 32px', 
                     background: processando ? '#cbd5e1' : 'linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%)', 
                     color: 'white', 
@@ -506,6 +530,7 @@ function Dashboard() {
                     transition: 'all 0.3s ease',
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: '10px'
                   }}
                 >
@@ -533,7 +558,7 @@ function Dashboard() {
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#334155', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Nome da Jornada / Treinamento
                 </label>
-                <input type="text" value={nomeTurma} onChange={(e) => setNomeTurma(e.target.value)} placeholder="Ex: Formação de Liderança 2026" style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '16px', outline: 'none', transition: '0.2s' }} onFocus={(e) => e.target.style.borderColor = '#10b981'} onBlur={(e) => e.target.style.borderColor = '#cbd5e1'} required />
+                <input type="text" value={nomeTurma} onChange={(e) => setNomeTurma(e.target.value)} placeholder="Ex: Formação de Liderança 2026" style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '16px', outline: 'none', transition: '0.2s', boxSizing: 'border-box' }} onFocus={(e) => e.target.style.borderColor = '#10b981'} onBlur={(e) => e.target.style.borderColor = '#cbd5e1'} required />
               </div>
 
               <div>
@@ -545,18 +570,19 @@ function Dashboard() {
                 {perguntas.map((p, pIndex) => (
                   <div key={pIndex} style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', position: 'relative' }}>
                     
-                    <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1 }}>
-                        <input type="text" value={p.texto} onChange={(e) => {const n=[...perguntas]; n[pIndex].texto=e.target.value; setPerguntas(n);}} placeholder="Digite a pergunta ou critério de avaliação..." style={{ width: '100%', padding: '10px', border: 'none', borderBottom: '2px solid #f1f5f9', fontSize: '15px', fontWeight: '500', outline: 'none' }} onFocus={(e) => e.target.style.borderBottomColor = '#10b981'} onBlur={(e) => e.target.style.borderBottomColor = '#f1f5f9'} required />
+                    <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'flex-start', flexDirection: isMobile ? 'column' : 'row' }}>
+                      <div style={{ flex: 1, width: '100%' }}>
+                        <input type="text" value={p.texto} onChange={(e) => {const n=[...perguntas]; n[pIndex].texto=e.target.value; setPerguntas(n);}} placeholder="Digite a pergunta ou critério de avaliação..." style={{ width: '100%', padding: '10px', border: 'none', borderBottom: '2px solid #f1f5f9', fontSize: '15px', fontWeight: '500', outline: 'none', boxSizing: 'border-box' }} onFocus={(e) => e.target.style.borderBottomColor = '#10b981'} onBlur={(e) => e.target.style.borderBottomColor = '#f1f5f9'} required />
                       </div>
-                      <select value={p.tipo} onChange={(e) => {const n=[...perguntas]; n[pIndex].tipo=e.target.value; if(e.target.value!=='texto' && n[pIndex].opcoes.length===0) n[pIndex].opcoes=['Opção 1']; setPerguntas(n);}} style={{ padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', cursor: 'pointer', outline: 'none', fontSize: '13px' }}>
-                        <option value="texto">Texto Curto</option>
-                        <option value="unica_escolha">Única Escolha (Radio)</option>
-                        <option value="multipla_escolha">Múltipla Escolha (Check)</option>
-                      </select>
-                      <button type="button" onClick={() => setPerguntas(perguntas.filter((_, i) => i !== pIndex))} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }} title="Remover pergunta">✕</button>
+                      <div style={{ display: 'flex', gap: '8px', width: isMobile ? '100%' : 'auto' }}>
+                        <select value={p.tipo} onChange={(e) => {const n=[...perguntas]; n[pIndex].tipo=e.target.value; if(e.target.value!=='texto' && n[pIndex].opcoes.length===0) n[pIndex].opcoes=['Opção 1']; setPerguntas(n);}} style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', cursor: 'pointer', outline: 'none', fontSize: '13px' }}>
+                          <option value="texto">Texto Curto</option>
+                          <option value="unica_escolha">Única Escolha (Radio)</option>
+                          <option value="multipla_escolha">Múltipla Escolha (Check)</option>
+                        </select>
+                        <button type="button" onClick={() => setPerguntas(perguntas.filter((_, i) => i !== pIndex))} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }} title="Remover pergunta">✕</button>
+                      </div>
                     </div>
-                    {/* NOVO: CHECKBOX DE OBRIGATORIEDADE */}
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748b', marginTop: '12px', cursor: 'pointer' }}>
                       <input 
                         type="checkbox" 
@@ -572,7 +598,7 @@ function Dashboard() {
                         {p.opcoes.map((opcao, oIdx) => (
                           <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                             <span style={{ color: '#cbd5e1' }}>{p.tipo === 'unica_escolha' ? '○' : '☐'}</span>
-                            <input type="text" value={opcao} onChange={(e) => {const n=[...perguntas]; n[pIndex].opcoes[oIdx]=e.target.value; setPerguntas(n);}} style={{ padding: '6px 12px', border: '1px solid #f1f5f9', borderRadius: '4px', fontSize: '14px', width: '280px', outline: 'none' }} onFocus={(e) => e.target.style.borderColor = '#10b981'} onBlur={(e) => e.target.style.borderColor = '#f1f5f9'} required />
+                            <input type="text" value={opcao} onChange={(e) => {const n=[...perguntas]; n[pIndex].opcoes[oIdx]=e.target.value; setPerguntas(n);}} style={{ padding: '6px 12px', border: '1px solid #f1f5f9', borderRadius: '4px', fontSize: '14px', width: isMobile ? '100%' : '280px', outline: 'none' }} onFocus={(e) => e.target.style.borderColor = '#10b981'} onBlur={(e) => e.target.style.borderColor = '#f1f5f9'} required />
                             {p.opcoes.length > 1 && (<button type="button" onClick={() => {const n=[...perguntas]; n[pIndex].opcoes.splice(oIdx, 1); setPerguntas(n);}} style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>remover</button>)}
                           </div>
                         ))}
@@ -586,7 +612,7 @@ function Dashboard() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '24px', borderTop: '1px solid #f1f5f9' }}>
-                <button type="submit" disabled={processando} style={{ padding: '14px 40px', background: processando ? '#94a3b8' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '16px', cursor: processando ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}>
+                <button type="submit" disabled={processando} style={{ width: isMobile ? '100%' : 'auto', padding: '14px 40px', background: processando ? '#94a3b8' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '16px', cursor: processando ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}>
                   {processando ? 'Gerando Formulário...' : 'Publicar Template e Gerar Link'}
                 </button>
               </div>
@@ -605,7 +631,6 @@ function Dashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
                 {turmasParaSelect.map(t => (
                   <div key={t.id} style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '24px', transition: 'all 0.3s ease', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', opacity: t.ativo === false ? 0.6 : 1 }}>
-                    
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                         <h4 style={{ margin: 0, color: '#0f172a', fontSize: '16px', lineHeight: '1.4', fontWeight: '700', paddingRight: '12px' }}>{t.nome_treinamento}</h4>
@@ -616,36 +641,18 @@ function Dashboard() {
                            {t.ativo === false ? 'Inativo' : 'Ativo'}
                         </div>
                       </div>
-
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 24px 0', fontSize: '13px', color: '#64748b' }}>
                         <span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>ID: {t.id}</span>
                         <span>•</span>
                         <span>{t.perguntas_json ? t.perguntas_json.length : 0} critérios mapeados</span>
                       </div>
                     </div>
-                    
-                    {/* BOTÕES DE AÇÃO ALINHADOS */}
                     <div style={{ display: 'flex', gap: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
-                      <a 
-                        href={`/responder/${t.id}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        style={{ flex: 1, textAlign: 'center', padding: '10px', backgroundColor: '#f8fafc', color: '#0284c7', textDecoration: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', transition: '0.2s', border: '1px solid #e0f2fe' }}
-                        onMouseOver={(e) => {e.target.style.backgroundColor = '#e0f2fe'}}
-                        onMouseOut={(e) => {e.target.style.backgroundColor = '#f8fafc'}}
-                      >
-                        Acessar Link
-                      </a>
-                      <button 
-                        onClick={() => alternarStatusTemplate(t.id, t.ativo !== false)}
-                        style={{ flex: 1, padding: '10px', backgroundColor: t.ativo === false ? '#10b981' : '#fff', color: t.ativo === false ? '#fff' : '#64748b', border: t.ativo === false ? 'none' : '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: '0.2s' }}
-                        onMouseOver={(e) => {if(t.ativo !== false) e.target.style.backgroundColor = '#f1f5f9'}}
-                        onMouseOut={(e) => {if(t.ativo !== false) e.target.style.backgroundColor = '#fff'}}
-                      >
+                      <a href={`/responder/${t.id}`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '10px', backgroundColor: '#f8fafc', color: '#0284c7', textDecoration: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', transition: '0.2s', border: '1px solid #e0f2fe' }}>Acessar Link</a>
+                      <button onClick={() => alternarStatusTemplate(t.id, t.ativo !== false)} style={{ flex: 1, padding: '10px', backgroundColor: t.ativo === false ? '#10b981' : '#fff', color: t.ativo === false ? '#fff' : '#64748b', border: t.ativo === false ? 'none' : '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: '0.2s' }}>
                         {t.ativo === false ? 'Reativar' : 'Desativar'}
                       </button>
                     </div>
-
                   </div>
                 ))}
               </div>
