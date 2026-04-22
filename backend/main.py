@@ -1,18 +1,26 @@
 import os
 import json
-from fastapi import FastAPI, HTTPException
+import io
+import PyPDF2
+import docx
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google import genai
 from dotenv import load_dotenv
 from typing import List
+from tenacity import retry, wait_exponential, stop_after_attempt
 
 # Importa as novas funções do banco
-from database import alternar_status_turma, buscar_dados_dashboard, criar_turma_no_banco, buscar_turma_por_id, listar_turmas_do_banco, salvar_avaliacao_dinamica
+from database import alternar_status_turma, buscar_dados_dashboard, criar_turma_no_banco, buscar_turma_por_id, buscar_turma_por_slug, listar_turmas_do_banco, salvar_avaliacao_dinamica
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 cliente_gemini = genai.Client(api_key=GEMINI_API_KEY)
+
+@retry(wait=wait_exponential(multiplier=1, min=2, max=10), stop=stop_after_attempt(3))
+def gerar_conteudo_gemini(prompt: str):
+    return cliente_gemini.models.generate_content(model='gemini-2.5-flash', contents=prompt)
 
 app = FastAPI()
 app.add_middleware(
@@ -111,7 +119,7 @@ def avaliar_texto_dinamico(dados: AvaliacaoDinamicaInput):
         ]
         """
         
-        resposta_ia = cliente_gemini.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        resposta_ia = gerar_conteudo_gemini(prompt)
         texto_limpo = resposta_ia.text.strip().replace("```json", "").replace("```", "")
         resultados_json = json.loads(texto_limpo)
         
@@ -140,7 +148,35 @@ def avaliar_texto_dinamico(dados: AvaliacaoDinamicaInput):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+async def extrair_texto_arquivo(file: UploadFile) -> str:
+    content = await file.read()
+    if file.filename.lower().endswith(".pdf"):
+        reader = PyPDF2.PdfReader(io.BytesIO(content))
+        texto = ""
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                texto += t + "\n"
+        return texto
+    elif file.filename.lower().endswith(".docx"):
+        doc = docx.Document(io.BytesIO(content))
+        return "\n".join([para.text for para in doc.paragraphs])
+    else:
+        return content.decode("utf-8", errors="ignore")
+
+@app.post("/api/avaliar_arquivo")
+async def avaliar_arquivo(turma_id: int = Form(...), arquivo: UploadFile = File(...)):
+    try:
+        texto_extraido = await extrair_texto_arquivo(arquivo)
+        dados = AvaliacaoDinamicaInput(
+            turma_id=turma_id, 
+            texto_avaliacao=f"[ARQUIVO: {arquivo.filename}]\n\n{texto_extraido}"
+        )
+        return avaliar_texto_dinamico(dados)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
     # Novo modelo para receber os dados dos cliques do usuário
 class AvaliacaoManualInput(BaseModel):
     turma_id: int
@@ -170,7 +206,7 @@ def avaliar_formulario_manual(dados: AvaliacaoManualInput):
         }}
         """
         
-        resposta_ia = cliente_gemini.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        resposta_ia = gerar_conteudo_gemini(prompt)
         texto_limpo = resposta_ia.text.strip().replace("```json", "").replace("```", "")
         resultado_json = json.loads(texto_limpo)
         
@@ -190,10 +226,14 @@ def avaliar_formulario_manual(dados: AvaliacaoManualInput):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ROTA 5: Rota pública para o link do formulário buscar as perguntas
-@app.get("/api/turmas/{turma_id}")
-def api_obter_turma(turma_id: int):
+@app.get("/api/turmas/{identificador}")
+def api_obter_turma(identificador: str):
     try:
-        turma = buscar_turma_por_id(turma_id)
+        if identificador.isdigit():
+            turma = buscar_turma_por_id(int(identificador))
+        else:
+            turma = buscar_turma_por_slug(identificador)
+            
         if not turma:
             raise HTTPException(status_code=404, detail="Formulário não encontrado")
         return {"sucesso": True, "turma": turma}

@@ -8,6 +8,12 @@ function Formulario() {
   const [enviando, setEnviando] = useState(false);
   const [sucesso, setSucesso] = useState(false);
   const [erro, setErro] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const mostrarToast = (mensagem, tipo = 'sucesso') => {
+    setToast({ mensagem, tipo });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   useEffect(() => {
     // Busca as perguntas deste formulário específico assim que a página carrega
@@ -45,12 +51,12 @@ function Formulario() {
       const res = await fetch(import.meta.env.VITE_API_URL + '/api/avaliar_manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ turma_id: parseInt(id), respostas: respostas }),
+        body: JSON.stringify({ turma_id: turma.id, respostas: respostas }),
       });
       if (res.ok) setSucesso(true);
       else throw new Error("Falha ao salvar");
     } catch (err) {
-      alert("Erro ao enviar avaliação.");
+      mostrarToast("Erro ao enviar avaliação.", "erro");
     } finally {
       setEnviando(false);
     }
@@ -111,6 +117,13 @@ function Formulario() {
 
   return (
     <div style={MDesign.fundo}>
+      {toast && (
+        <div style={{ position: 'fixed', top: '24px', right: '24px', backgroundColor: toast.tipo === 'sucesso' ? '#10b981' : '#ef4444', color: '#fff', padding: '16px 24px', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 9999, display: 'flex', alignItems: 'center', gap: '12px', fontWeight: '600', animation: 'slideIn 0.3s ease-out' }}>
+          <span style={{ fontSize: '20px' }}>{toast.tipo === 'sucesso' ? '✓' : '⚠'}</span>
+          {toast.mensagem}
+          <style>{`@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
+        </div>
+      )}
       <div style={MDesign.container}>
         
         {/* CABEÇALHO DO GOOGLE FORMS */}

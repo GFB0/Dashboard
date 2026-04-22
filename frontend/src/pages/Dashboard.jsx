@@ -19,7 +19,14 @@ function Dashboard() {
   const [turmaSelecionada, setTurmaSelecionada] = useState('');
   const [textoAvaliacao, setTextoAvaliacao] = useState('');
   const [processando, setProcessando] = useState(false);
+  const [arquivoUpload, setArquivoUpload] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [toast, setToast] = useState(null);
 
+  const mostrarToast = (mensagem, tipo = 'sucesso') => {
+    setToast({ mensagem, tipo });
+    setTimeout(() => setToast(null), 4000);
+  };
   const CORES = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6', '#f43f5e'];
   const CORES_TERMOMETRO = { 'Sucesso': '#10b981', 'Atenção': '#f59e0b', 'Crítico': '#ef4444' };
 
@@ -197,7 +204,7 @@ function Dashboard() {
         body: JSON.stringify({ ativo: !statusAtual })
       });
       carregarDados();
-    } catch (err) { alert("Erro ao alterar status."); }
+    } catch (err) { mostrarToast("Erro ao alterar status.", "erro"); }
   };
 
   const salvarTurma = async (e) => {
@@ -205,16 +212,42 @@ function Dashboard() {
     const validas = perguntas.filter(p => p.texto.trim() !== '');
     try {
       await fetch(import.meta.env.VITE_API_URL + '/api/turmas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome_treinamento: nomeTurma, perguntas: validas }) });
-      alert("Sucesso!"); setNomeTurma(''); setPerguntas([{ texto: '', tipo: 'texto', opcoes: [] }]); carregarDados();
-    } catch (err) { alert("Erro."); } finally { setProcessando(false); }
+      mostrarToast("Template salvo com sucesso!"); setNomeTurma(''); setPerguntas([{ texto: '', tipo: 'texto', opcoes: [], obrigatoria: false }]); carregarDados();
+    } catch (err) { mostrarToast("Erro ao salvar template.", "erro"); } finally { setProcessando(false); }
   };
 
   const enviarParaAgente = async (e) => {
-    e.preventDefault(); setProcessando(true);
+    e.preventDefault(); 
+    if (!arquivoUpload && !textoAvaliacao) {
+       mostrarToast("Por favor, cole um texto ou envie um arquivo.", "erro");
+       return;
+    }
+    setProcessando(true);
+    if (arquivoUpload) setIsScanning(true);
+    
     try {
-      await fetch(import.meta.env.VITE_API_URL + '/api/avaliar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ turma_id: parseInt(turmaSelecionada), texto_avaliacao: textoAvaliacao }) });
-      alert("Sucesso!"); setTextoAvaliacao(''); carregarDados();
-    } catch (err) { alert("Erro."); } finally { setProcessando(false); }
+      if (arquivoUpload) {
+        const formData = new FormData();
+        formData.append('turma_id', turmaSelecionada);
+        formData.append('arquivo', arquivoUpload);
+        await fetch(import.meta.env.VITE_API_URL + '/api/avaliar_arquivo', { 
+            method: 'POST', 
+            body: formData 
+        });
+      } else {
+        await fetch(import.meta.env.VITE_API_URL + '/api/avaliar', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ turma_id: parseInt(turmaSelecionada), texto_avaliacao: textoAvaliacao }) 
+        });
+      }
+      mostrarToast("Avaliação processada com sucesso!"); setTextoAvaliacao(''); setArquivoUpload(null); carregarDados();
+    } catch (err) { 
+        mostrarToast("Erro ao processar avaliação.", "erro"); 
+    } finally { 
+        setProcessando(false); 
+        setIsScanning(false);
+    }
   };
 
   // --- ESTILOS MODERNOS ---
@@ -268,6 +301,13 @@ function Dashboard() {
 
   return (
     <div style={Estilos.layout}>
+      {toast && (
+        <div style={{ position: 'fixed', top: '24px', right: '24px', backgroundColor: toast.tipo === 'sucesso' ? '#10b981' : '#ef4444', color: '#fff', padding: '16px 24px', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 9999, display: 'flex', alignItems: 'center', gap: '12px', fontWeight: '600', animation: 'slideIn 0.3s ease-out' }}>
+          <span style={{ fontSize: '20px' }}>{toast.tipo === 'sucesso' ? '✓' : '⚠'}</span>
+          {toast.mensagem}
+          <style>{`@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
+        </div>
+      )}
       
       {isMobile && menuAberto && <div style={Estilos.overlay} onClick={() => setMenuAberto(false)} />}
 
@@ -450,8 +490,20 @@ function Dashboard() {
 
         {/* --- TELA 2: AGENTE IA (ESTILO PREMIUM RESTAURADO) --- */}
         {abaAtiva === 'agente' && (
-          <div style={{ ...Estilos.card, maxWidth: '800px', margin: '0 auto', borderTop: '4px solid #8b5cf6', padding: '32px' }}>
+          <div style={{ ...Estilos.card, maxWidth: '800px', margin: '0 auto', borderTop: '4px solid #8b5cf6', padding: '32px', position: 'relative' }}>
             
+            {isScanning && (
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.9)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', backdropFilter: 'blur(4px)' }}>
+                <div style={{ width: '80px', height: '80px', position: 'relative', marginBottom: '24px' }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, border: '4px solid #e2e8f0', borderRadius: '50%' }}></div>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, border: '4px solid #8b5cf6', borderRadius: '50%', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }}></div>
+                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '24px' }}>📄</div>
+                </div>
+                <h3 style={{ margin: 0, color: '#0f172a', fontSize: '18px', marginBottom: '8px' }}>Lendo Arquivo...</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>A IA está extraindo as informações e preenchendo o painel.</p>
+                <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
               <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#ede9fe', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', boxShadow: '0 2px 4px rgba(139, 92, 246, 0.1)' }}>
                 ✨
@@ -488,20 +540,45 @@ function Dashboard() {
 
               <div>
                 <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>
-                  <span>2. Cole os dados brutos (Degravações, Feedbacks, etc)</span>
-                  <span style={{ color: '#8b5cf6', backgroundColor: '#ede9fe', padding: '4px 10px', borderRadius: '20px', fontSize: '12px' }}>Aceita lotes</span>
+                  <span>2. Cole os dados brutos OU anexe um arquivo</span>
+                  <span style={{ color: '#8b5cf6', backgroundColor: '#ede9fe', padding: '4px 10px', borderRadius: '20px', fontSize: '12px' }}>Aceita PDF/Word</span>
                 </label>
                 
-                <div style={{ border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '4px', backgroundColor: '#fcfcfd', transition: 'all 0.2s' }}>
-                  <textarea 
-                    rows="10" 
-                    value={textoAvaliacao} 
-                    onChange={(e) => setTextoAvaliacao(e.target.value)} 
-                    placeholder="Exemplo: Na turma de hoje tivemos 5 avaliações. 3 pessoas disseram que o conhecimento do gestor foi nota 10, mas 2 reclamaram da aptidão para o cargo..." 
-                    style={{ width: '100%', padding: '16px', border: 'none', backgroundColor: 'transparent', resize: 'vertical', fontSize: '15px', color: '#334155', outline: 'none', boxSizing: 'border-box', lineHeight: '1.6' }} 
-                    required 
-                  />
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                   <div style={{ flex: 1, position: 'relative' }}>
+                     <input 
+                       type="file" 
+                       accept=".pdf,.doc,.docx"
+                       onChange={(e) => {
+                         if (e.target.files && e.target.files[0]) {
+                           setArquivoUpload(e.target.files[0]);
+                           setTextoAvaliacao(''); // Limpa o texto se anexar arquivo
+                         }
+                       }}
+                       style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }}
+                     />
+                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px', backgroundColor: '#f1f5f9', border: '2px dashed #cbd5e1', borderRadius: '8px', color: '#475569', fontSize: '14px', fontWeight: '600', transition: 'all 0.2s' }}>
+                       {arquivoUpload ? `📁 ${arquivoUpload.name}` : '📎 Clique para anexar PDF ou Word'}
+                     </div>
+                   </div>
+                   {arquivoUpload && (
+                     <button type="button" onClick={() => setArquivoUpload(null)} style={{ padding: '0 16px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
+                       Remover
+                     </button>
+                   )}
                 </div>
+
+                {!arquivoUpload && (
+                  <div style={{ border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '4px', backgroundColor: '#fcfcfd', transition: 'all 0.2s' }}>
+                    <textarea 
+                      rows="8" 
+                      value={textoAvaliacao} 
+                      onChange={(e) => setTextoAvaliacao(e.target.value)} 
+                      placeholder="Exemplo: Na turma de hoje tivemos 5 avaliações. 3 pessoas disseram que o conhecimento do gestor foi nota 10..." 
+                      style={{ width: '100%', padding: '16px', border: 'none', backgroundColor: 'transparent', resize: 'vertical', fontSize: '15px', color: '#334155', outline: 'none', boxSizing: 'border-box', lineHeight: '1.6' }} 
+                    />
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', paddingTop: '24px', borderTop: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '16px' }}>
@@ -648,7 +725,7 @@ function Dashboard() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
-                      <a href={`/responder/${t.id}`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '10px', backgroundColor: '#f8fafc', color: '#0284c7', textDecoration: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', transition: '0.2s', border: '1px solid #e0f2fe' }}>Acessar Link</a>
+                      <a href={`/responder/${t.slug || t.id}`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '10px', backgroundColor: '#f8fafc', color: '#0284c7', textDecoration: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', transition: '0.2s', border: '1px solid #e0f2fe' }}>Acessar Link</a>
                       <button onClick={() => alternarStatusTemplate(t.id, t.ativo !== false)} style={{ flex: 1, padding: '10px', backgroundColor: t.ativo === false ? '#10b981' : '#fff', color: t.ativo === false ? '#fff' : '#64748b', border: t.ativo === false ? 'none' : '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: '0.2s' }}>
                         {t.ativo === false ? 'Reativar' : 'Desativar'}
                       </button>

@@ -49,12 +49,20 @@ def salvar_avaliacao_dinamica(turma_id, texto, respostas_json, resumo):
 
 # 4. Lista todas as turmas para o menu do React
 def listar_turmas_do_banco():
-    # Adicionamos 'ativo' no select
-    url = f"{URL_SUPABASE}/rest/v1/turmas?select=id,nome_treinamento,perguntas_json,ativo&order=created_at.desc"
+    # Adicionamos 'ativo' e 'slug' no select
+    url = f"{URL_SUPABASE}/rest/v1/turmas?select=id,slug,nome_treinamento,perguntas_json,ativo&order=created_at.desc"
     cabecalhos_get = {"apikey": CHAVE_SUPABASE, "Authorization": f"Bearer {CHAVE_SUPABASE}"}
     resposta = requests.get(url, headers=cabecalhos_get)
     resposta.raise_for_status()
     return resposta.json()
+
+def buscar_turma_por_slug(slug):
+    url = f"{URL_SUPABASE}/rest/v1/turmas?slug=eq.{slug}&select=*"
+    cabecalhos_get = {"apikey": CHAVE_SUPABASE, "Authorization": f"Bearer {CHAVE_SUPABASE}"}
+    resposta = requests.get(url, headers=cabecalhos_get)
+    resposta.raise_for_status()
+    dados = resposta.json()
+    return dados[0] if dados else None
 
 # 5. Busca os dados para o Dashboard moderno
 def buscar_dados_dashboard():
