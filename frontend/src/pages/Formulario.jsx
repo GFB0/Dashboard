@@ -62,37 +62,39 @@ function Formulario() {
     }
   };
 
-  // --- MATERIAL DESIGN ESTILOS ---
-  const MDesign = {
-    fundo: { minHeight: '100vh', backgroundColor: '#f0ebf8', fontFamily: "'Roboto', 'Helvetica', 'Arial', sans-serif", padding: '30px 15px', display: 'flex', justifyContent: 'center' },
-    container: { width: '100%', maxWidth: '640px' },
-    cardCabecalho: { backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(60,64,67,0.3)', marginBottom: '15px' },
-    bordaTopo: { height: '10px', backgroundColor: 'rgb(103, 58, 183)' },
-    tituloCabecalho: { padding: '24px', fontSize: '32px', color: '#202124', margin: 0, fontWeight: '400' },
-    cardPergunta: { backgroundColor: '#fff', borderRadius: '8px', padding: '24px', boxShadow: '0 1px 3px rgba(60,64,67,0.3)', marginBottom: '15px' },
-    tituloPergunta: { fontSize: '16px', color: '#202124', fontWeight: '400', marginBottom: '16px', letterSpacing: '0.1px' },
-    inputTexto: { width: '100%', border: 'none', borderBottom: '1px solid #d1d5db', padding: '8px 0', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s', backgroundColor: 'transparent' },
-    labelOpcao: { display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', marginBottom: '16px', color: '#202124', fontSize: '14px' },
-    radioBox: { width: '20px', height: '20px', cursor: 'pointer', accentColor: 'rgb(103, 58, 183)' },
-    botaoSubmit: { backgroundColor: 'rgb(103, 58, 183)', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '4px', fontSize: '14px', fontWeight: '500', cursor: 'pointer', letterSpacing: '0.5px', textTransform: 'uppercase', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }
+  // --- DESIGN PREMIUM E MODERNO ---
+  const Estilos = {
+    fundo: { minHeight: '100vh', background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)', fontFamily: "'Inter', 'Segoe UI', sans-serif", padding: '40px 20px', display: 'flex', justifyContent: 'center' },
+    container: { width: '100%', maxWidth: '720px' },
+    cardCabecalho: { backgroundColor: '#ffffff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.04)', marginBottom: '24px', border: '1px solid rgba(226, 232, 240, 0.8)', position: 'relative' },
+    bordaTopo: { height: '8px', background: 'linear-gradient(90deg, #8b5cf6 0%, #3b82f6 100%)' },
+    tituloCabecalho: { padding: '32px 32px 12px 32px', fontSize: '32px', color: '#0f172a', margin: 0, fontWeight: '800', letterSpacing: '-0.5px', lineHeight: '1.2' },
+    descricao: { padding: '0 32px 32px 32px', color: '#64748b', fontSize: '16px', margin: 0, lineHeight: '1.6' },
+    cardPergunta: { backgroundColor: '#ffffff', borderRadius: '16px', padding: '32px', boxShadow: '0 2px 12px rgba(0,0,0,0.02)', marginBottom: '20px', border: '1px solid rgba(226, 232, 240, 0.8)', transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative', overflow: 'hidden' },
+    tituloPergunta: { fontSize: '17px', color: '#1e293b', fontWeight: '600', marginBottom: '20px', lineHeight: '1.4' },
+    inputTexto: { width: '100%', border: '2px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px', fontSize: '15px', outline: 'none', transition: 'all 0.2s ease', backgroundColor: '#f8fafc', color: '#334155', boxSizing: 'border-box' },
+    botaoSubmit: { width: '100%', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: '#fff', border: 'none', padding: '16px 32px', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s ease', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.25)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }
   };
 
-  if (erro) return <div style={{ textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' }}><h2>{erro}</h2></div>;
-  if (!turma) return <div style={{ textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' }}>Carregando formulário...</div>;
+  if (erro) return <div style={{ textAlign: 'center', padding: '50px', fontFamily: 'sans-serif', color: '#ef4444' }}><h2>{erro}</h2></div>;
+  
+  if (!turma) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+      <div style={{ width: '40px', height: '40px', border: '4px solid #e2e8f0', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+      <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
 
-  // NOVA TRAVA: Se o formulário foi desativado no painel, bloqueia a tela inteira.
   if (turma.ativo === false) {
     return (
-      <div style={MDesign.fundo}>
-        <div style={MDesign.container}>
-          <div style={MDesign.cardCabecalho}>
-            <div style={{ height: '10px', backgroundColor: '#5f6368' }}></div> {/* Borda cinza para indicar inativo */}
-            <div style={{ padding: '32px 24px' }}>
-              <h1 style={{ ...MDesign.tituloCabecalho, color: '#5f6368', padding: 0 }}>O formulário "{turma.nome_treinamento}" não aceita mais respostas</h1>
-              <p style={{ color: '#202124', fontSize: '15px', marginTop: '16px', lineHeight: '1.5' }}>
-                Este formulário foi desativado pelo administrador. Se você acha que isso é um erro, entre em contato com o responsável pelo treinamento.
-              </p>
-            </div>
+      <div style={Estilos.fundo}>
+        <div style={Estilos.container}>
+          <div style={{...Estilos.cardCabecalho, textAlign: 'center', padding: '48px 32px'}}>
+             <div style={{ width: '64px', height: '64px', backgroundColor: '#fee2e2', color: '#ef4444', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', margin: '0 auto 24px' }}>🔒</div>
+             <h1 style={{ color: '#0f172a', fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>Formulário Encerrado</h1>
+             <p style={{ color: '#64748b', fontSize: '16px', lineHeight: '1.6', margin: 0 }}>
+               O treinamento <strong>"{turma.nome_treinamento}"</strong> não está mais aceitando respostas no momento.
+             </p>
           </div>
         </div>
       </div>
@@ -101,100 +103,158 @@ function Formulario() {
   
   if (sucesso) {
     return (
-      <div style={MDesign.fundo}>
-        <div style={MDesign.container}>
-          <div style={MDesign.cardCabecalho}>
-            <div style={MDesign.bordaTopo}></div>
-            <div style={{ padding: '24px' }}>
-              <h1 style={MDesign.tituloCabecalho}>{turma.nome_treinamento}</h1>
-              <p style={{ color: '#202124', fontSize: '14px', marginTop: '16px' }}>Sua resposta foi registrada. A IA já está processando os dados para o dashboard.</p>
-            </div>
+      <div style={Estilos.fundo}>
+        <div style={Estilos.container}>
+          <div style={{...Estilos.cardCabecalho, textAlign: 'center', padding: '64px 32px'}}>
+            <div style={{ width: '80px', height: '80px', backgroundColor: '#dcfce7', color: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', margin: '0 auto 24px', animation: 'scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>✓</div>
+            <h1 style={{ color: '#0f172a', fontSize: '28px', fontWeight: '800', marginBottom: '16px' }}>Tudo Certo!</h1>
+            <p style={{ color: '#64748b', fontSize: '16px', lineHeight: '1.6', margin: 0 }}>
+              Sua avaliação para <strong>{turma.nome_treinamento}</strong> foi enviada com sucesso.<br/>O motor de inteligência artificial já está analisando suas respostas.
+            </p>
           </div>
         </div>
+        <style>{`@keyframes scaleIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div style={MDesign.fundo}>
+    <div style={Estilos.fundo}>
+      <style>{`
+        .pergunta-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important;
+        }
+        .input-text:focus {
+          border-color: #8b5cf6 !important;
+          background-color: #ffffff !important;
+          box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+        }
+        .opcao-label {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          cursor: pointer;
+          padding: 14px 16px;
+          border-radius: 10px;
+          border: 2px solid #f1f5f9;
+          margin-bottom: 10px;
+          background-color: #ffffff;
+          transition: all 0.2s ease;
+        }
+        .opcao-label:hover {
+          border-color: #cbd5e1;
+          background-color: #f8fafc;
+        }
+        .opcao-label.selecionado {
+          border-color: #8b5cf6;
+          background-color: #f5f3ff;
+        }
+        .radio-custom {
+          width: 20px;
+          height: 20px;
+          margin-top: 2px;
+          cursor: pointer;
+          accent-color: #8b5cf6;
+        }
+        .btn-enviar:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4) !important;
+        }
+        .btn-enviar:active {
+          transform: translateY(0);
+        }
+      `}</style>
+
       {toast && (
-        <div style={{ position: 'fixed', top: '24px', right: '24px', backgroundColor: toast.tipo === 'sucesso' ? '#10b981' : '#ef4444', color: '#fff', padding: '16px 24px', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 9999, display: 'flex', alignItems: 'center', gap: '12px', fontWeight: '600', animation: 'slideIn 0.3s ease-out' }}>
+        <div style={{ position: 'fixed', top: '24px', right: '24px', backgroundColor: toast.tipo === 'sucesso' ? '#10b981' : '#ef4444', color: '#fff', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', zIndex: 9999, display: 'flex', alignItems: 'center', gap: '12px', fontWeight: '600', animation: 'slideIn 0.3s ease-out' }}>
           <span style={{ fontSize: '20px' }}>{toast.tipo === 'sucesso' ? '✓' : '⚠'}</span>
           {toast.mensagem}
-          <style>{`@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
         </div>
       )}
-      <div style={MDesign.container}>
+
+      <div style={Estilos.container}>
         
-        {/* CABEÇALHO DO GOOGLE FORMS */}
-        <div style={MDesign.cardCabecalho}>
-          <div style={MDesign.bordaTopo}></div>
-          <h1 style={MDesign.tituloCabecalho}>{turma.nome_treinamento}</h1>
-          <p style={{ padding: '0 24px 24px', color: '#5f6368', fontSize: '14px', margin: 0, borderTop: '1px solid #dadce0', paddingTop: '12px' }}>
-            Formulário oficial de avaliação. Preencha os campos abaixo.
+        {/* CABEÇALHO DO FORMULÁRIO */}
+        <div style={Estilos.cardCabecalho}>
+          <div style={Estilos.bordaTopo}></div>
+          <h1 style={Estilos.tituloCabecalho}>{turma.nome_treinamento}</h1>
+          <p style={Estilos.descricao}>
+            Por favor, preencha as informações abaixo com atenção. Seus feedbacks são processados por inteligência artificial para melhorar continuamente nossos treinamentos.
           </p>
         </div>
 
         <form onSubmit={enviarFormulario}>
           {turma.perguntas_json.map((p, pIndex) => (
-            <div key={pIndex} style={MDesign.cardPergunta}>
+            <div key={pIndex} style={Estilos.cardPergunta} className="pergunta-card">
               
-              {/* 1. O ASTERISCO AGORA É CONDICIONAL */}
-              <div style={MDesign.tituloPergunta}>
-                {p.texto} {p.obrigatoria && <span style={{ color: '#d93025' }}>*</span>}
+              <div style={Estilos.tituloPergunta}>
+                {p.texto} {p.obrigatoria && <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>}
               </div>
 
-              {/* 2. O REQUIRED NO TEXTO AGORA É CONDICIONAL */}
               {p.tipo === 'texto' && (
                 <input 
                   type="text" 
                   value={respostas[p.texto] || ''} 
                   onChange={(e) => lidarComMudanca(p.texto, e.target.value, 'texto')} 
-                  placeholder="Sua resposta" 
-                  style={MDesign.inputTexto} 
-                  onFocus={(e) => e.target.style.borderBottom = '2px solid rgb(103, 58, 183)'}
-                  onBlur={(e) => e.target.style.borderBottom = '1px solid #d1d5db'}
+                  placeholder="Digite sua resposta aqui..." 
+                  style={Estilos.inputTexto} 
+                  className="input-text"
                   required={p.obrigatoria} 
                 />
               )}
 
-              {/* 3. O REQUIRED NO RADIO AGORA É CONDICIONAL */}
-              {p.tipo === 'unica_escolha' && p.opcoes.map((opcao, oIndex) => (
-                <label key={oIndex} style={MDesign.labelOpcao}>
-                  <input 
-                    type="radio" 
-                    name={`pergunta_${pIndex}`} 
-                    value={opcao} 
-                    checked={respostas[p.texto] === opcao} 
-                    onChange={(e) => lidarComMudanca(p.texto, e.target.value, 'unica_escolha')} 
-                    style={MDesign.radioBox} 
-                    required={p.obrigatoria} 
-                  />
-                  {opcao}
-                </label>
-              ))}
+              {p.tipo === 'unica_escolha' && p.opcoes.map((opcao, oIndex) => {
+                const selecionado = respostas[p.texto] === opcao;
+                return (
+                  <label key={oIndex} className={`opcao-label ${selecionado ? 'selecionado' : ''}`}>
+                    <input 
+                      type="radio" 
+                      name={`pergunta_${pIndex}`} 
+                      value={opcao} 
+                      checked={selecionado} 
+                      onChange={(e) => lidarComMudanca(p.texto, e.target.value, 'unica_escolha')} 
+                      className="radio-custom"
+                      required={p.obrigatoria} 
+                    />
+                    <span style={{ fontSize: '15px', color: selecionado ? '#4c1d95' : '#334155', fontWeight: selecionado ? '600' : '400' }}>{opcao}</span>
+                  </label>
+                );
+              })}
 
-              {/* CHECKBOX: Em HTML padrão, colocar "required" em vários checkboxes exige que TODOS sejam marcados. Então para múltipla escolha deixamos livre. */}
-              {p.tipo === 'multipla_escolha' && p.opcoes.map((opcao, oIndex) => (
-                <label key={oIndex} style={MDesign.labelOpcao}>
-                  <input 
-                    type="checkbox" 
-                    value={opcao} 
-                    checked={(respostas[p.texto] || []).includes(opcao)} 
-                    onChange={(e) => lidarComMudanca(p.texto, e.target.value, 'multipla_escolha', e.target.checked)} 
-                    style={MDesign.radioBox} 
-                  />
-                  {opcao}
-                </label>
-              ))}
+              {p.tipo === 'multipla_escolha' && p.opcoes.map((opcao, oIndex) => {
+                const selecionado = (respostas[p.texto] || []).includes(opcao);
+                return (
+                  <label key={oIndex} className={`opcao-label ${selecionado ? 'selecionado' : ''}`}>
+                    <input 
+                      type="checkbox" 
+                      value={opcao} 
+                      checked={selecionado} 
+                      onChange={(e) => lidarComMudanca(p.texto, e.target.value, 'multipla_escolha', e.target.checked)} 
+                      className="radio-custom"
+                    />
+                    <span style={{ fontSize: '15px', color: selecionado ? '#4c1d95' : '#334155', fontWeight: selecionado ? '600' : '400' }}>{opcao}</span>
+                  </label>
+                );
+              })}
             </div>
           ))}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-            <button type="submit" disabled={enviando} style={{ ...MDesign.botaoSubmit, backgroundColor: enviando ? '#ccc' : 'rgb(103, 58, 183)' }}>
-              {enviando ? 'Enviando...' : 'Enviar'}
+          <div style={{ marginTop: '32px', marginBottom: '64px' }}>
+            <button type="submit" disabled={enviando} style={{ ...Estilos.botaoSubmit, opacity: enviando ? 0.7 : 1 }} className="btn-enviar">
+              {enviando ? (
+                 <>
+                   <div style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                   Processando Respostas...
+                 </>
+              ) : (
+                 'Enviar Avaliação Segura'
+              )}
             </button>
-            <span style={{ color: '#5f6368', fontSize: '12px' }}>Protegido por Agente IA</span>
+            <div style={{ textAlign: 'center', marginTop: '16px', color: '#94a3b8', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Protegido por Inteligência Artificial
+            </div>
           </div>
         </form>
 
